@@ -1,0 +1,177 @@
+const mongoose = require('mongoose');
+
+const noteSchema = new mongoose.Schema({
+  title: String,
+  content: String,
+  userId: String 
+});
+
+const Note = mongoose.model('Note', noteSchema);
+
+module.exports = Note;
+// Create models for CRUD operations
+
+//STEPS;
+ 1. Authentiction :
+         Set up User Registration, login, and authentication Using JWT( JSON Web Token)
+
+ 2.Building the API:
+         To Create routes for CRUD operations on notes.
+         Implement authentication middleware to protect routes.
+
+3.Setting up the Frontend (React.js):
+         Set up a new React.js project using Create React App or any other method.
+         Create components for creating, editing, and deleting notes. (CRUD)
+         Implement user authentication and authorization.
+
+ 4.Connecting Frontend with Backend:
+         By Using Axios or Fetch API to make HTTP requests to the backend API endpoints.
+         Handle responses and update the UI accordingly.
+
+ 5.Styling and UI:
+         By Using CSS, or any CSS framework to style the application.
+
+Java Script XML code
+import React, { useState, useEffect } from 'react';
+import axios from 'axios';
+
+const NoteApp = () => {
+  const [notes, setNotes] = useState([]);
+  const [newNote, setNewNote] = useState({ title: '', content: '' });
+
+  useEffect(() => {
+    fetchNotes();
+  }, []);
+
+  const fetchNotes = async () => {
+    try {
+      const response = await axios.get('/api/notes');
+      setNotes(response.data);
+    } catch (error) {
+      console.error('Error fetching notes:', error);
+    }
+  };
+
+  const handleInputChange = (e) => {
+    setNewNote({
+      ...newNote,
+      [e.target.name]: e.target.value
+    });
+  };
+
+  const handleSubmit = async (e) => {
+    e.preventDefault();
+    try {
+      await axios.post('/api/notes', newNote);
+      setNewNote({ title: '', content: '' });
+      fetchNotes();
+    } catch (error) {
+      console.error('Error creating note:', error);
+    }
+  };
+
+  return (
+    <div>
+      <h1>Notes</h1>
+      <ul>
+        {notes.map(note => (
+          <li key={note._id}>
+            <h2>{note.title}</h2>
+            <p>{note.content}</p>
+          </li>
+        ))}
+      </ul>
+      <form onSubmit={handleSubmit}>
+        <input type="text" name="title" value={newNote.title} onChange={handleInputChange} />
+        <textarea name="content" value={newNote.content} onChange={handleInputChange} />
+        <button type="submit">Add Note</button>
+      </form>
+    </div>
+  );
+};
+
+export default NoteApp;
+
+Express.js backend to Handle CRUD operations and user Authentication
+
+//CRUD Operations for Notes:
+To Create routes for creating, reading, updating, and deleting notes.
+Implement middleware to verify JWT tokens for protected routes (routes that require authentication)
+
+const express = require('express');
+const mongoose = require('mongoose');
+const bcrypt = require('bcrypt');
+const jwt = require('jsonwebtoken');
+const { check, validationResult } = require('express-validator');
+const User = require('./models/User');
+const Note = require('./models/Note');
+const authMiddleware = require('./middleware/auth');
+const app = express();
+app.use(express.json());
+
+mongoose.connect('mongodb://localhost:27017/noteapp', {
+  useNewUrlParser: true,
+  useUnifiedTopology: true,
+  useCreateIndex: true
+});
+
+app.post('/api/register', [
+  check('username', 'Please enter a valid username').notEmpty(),
+  check('email', 'Please enter a valid email').isEmail(),
+  check('password', 'Please enter a password with 6 or more characters').isLength({ min: 6 })
+],
+async (req, res) =>
+{
+  const errors = validationResult(req);
+  if (!errors.isEmpty()) 
+{
+    return res.status(400).json({ errors: errors.array() });
+  }
+  try {
+    const { username, email, password } = req.body;
+    let user = await User.findOne({ email });
+    if (user)
+{
+      return res.status(400).json({ msg: 'User already exists' });
+    }
+
+    user = new User({
+      username,
+      email,
+      password
+    });
+
+    const salt = await bcrypt.genSalt(10);
+    user.password = await bcrypt.hash(password, salt);
+    await user.save();
+    const payload = {
+      user: {
+        id: user.id
+      }
+    };
+
+    jwt.sign(payload, 'jwtSecret', { expiresIn: 3600 }, (err, token) =>
+{
+      if (err) throw err;
+      res.json({ token });
+    });
+  } catch (err) {
+    console.error(err.message);
+    res.status(500).send('Server Error');
+  }
+});
+
+app.get('/api/notes', authMiddleware, async (req, res) => {
+  try {
+    
+    const notes = await Note.find({ user: req.user.id }).sort({ date: -1 });
+    res.json(notes);
+  } catch (err) {
+    console.error(err.message);
+    res.status(500).send('Server Error');
+  }
+});
+
+const PORT = process.env.PORT || 5000;
+app.listen(PORT, () => console.log(Server started on port ${PORT}));
+
